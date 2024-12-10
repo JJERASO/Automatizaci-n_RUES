@@ -267,130 +267,154 @@ for nit in nits:
                 EC.presence_of_element_located((By.XPATH, activa_td_xpath))
             )
         except TimeoutException:
-            data = {'NIT': nit,
-                'Última_Renovación': 'NO_ACTIVA'}
-            results.append(data)
-            driver.find_element(By.ID, 'txtNIT').clear()
-            continue
-            
-        # Encontrar la fila padre de la celda encontrada
-        parent_row = activa_td.find_element(By.XPATH, "./ancestor::tr")
-        # Encontrar la celda con tabindex="0" en la misma fila
-        target_td = parent_row.find_element(By.XPATH, ".//td[@tabindex='0']")
-        # Esperar a que la celda con tabindex="0" sea clicable
-        WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, ".//td[@tabindex='0']"))
-        )
-        # Hacer clic en la celda con tabindex="0"
-        target_td.click()
+            soup = BeautifulSoup(page_source, "html.parser")
+            second_cell = soup.select_one("table#rmTable2 tr:nth-of-type(2) td:nth-of-type(2)")
+            if second_cell:
+                nombre_rapido = second_cell.get_text()
+                data = {'NIT': nit,
+                    'Razón_social': nombre_rapido,
+                    'Última_Renovación': 'NO_ACTIVA',
+                    'Activo_Total': None,
+                    'Ingresos_Actividad_Ordinaria': None
+                    }
+                results.append(data)
+                driver.find_element(By.ID, 'txtNIT').clear()
+                continue
+            else:
+                data = {'NIT': nit,
+                    'Razón_social': None,
+                    'Última_Renovación': 'NO_ACTIVA',
+                    'Activo_Total': None,
+                    'Ingresos_Actividad_Ordinaria': None
+                    }
+                results.append(data)
+                driver.find_element(By.ID, 'txtNIT').clear()
+                continue
+        else:    
+            # Encontrar la fila padre de la celda encontrada
+            parent_row = activa_td.find_element(By.XPATH, "./ancestor::tr")
+            # Encontrar la celda con tabindex="0" en la misma fila
+            target_td = parent_row.find_element(By.XPATH, ".//td[@tabindex='0']")
+            # Esperar a que la celda con tabindex="0" sea clicable
+            WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, ".//td[@tabindex='0']"))
+            )
+            # Hacer clic en la celda con tabindex="0"
+            target_td.click()
 
-        # Dar click en el link de info
-        encontrar_link = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.LINK_TEXT, "nfo")))
-        encontrar_link.click()
+            # Dar click en el link de info
+            encontrar_link = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.LINK_TEXT, "nfo")))
+            encontrar_link.click()
 
-        # Dar click en el botón de info financiera
-        xpath_ver_info_financiera = "(//span[contains(text(), 'Ver información')])[1]"
-        ver_info_link = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, xpath_ver_info_financiera)))
-        WebDriverWait(driver, 20).until(EC.visibility_of(ver_info_link))
-        WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, xpath_ver_info_financiera)))
-        driver.execute_script("arguments[0].scrollIntoView(true);", ver_info_link)
-        driver.execute_script("arguments[0].click();", ver_info_link)
+            # Dar click en el botón de info financiera
+            xpath_ver_info_financiera = "(//span[contains(text(), 'Ver información')])[1]"
+            ver_info_link = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, xpath_ver_info_financiera)))
+            WebDriverWait(driver, 20).until(EC.visibility_of(ver_info_link))
+            WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, xpath_ver_info_financiera)))
+            driver.execute_script("arguments[0].scrollIntoView(true);", ver_info_link)
+            driver.execute_script("arguments[0].click();", ver_info_link)
 
-        print(globals())
+            print(globals())
 
-        # Dar click en el botón del año a buscar
-        try:
-            xpath_ano = f"//div[@id='{ano}']//button"
-            ver_ano_link = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_ano)))
-            WebDriverWait(driver, 7).until(EC.visibility_of(ver_ano_link))
-            WebDriverWait(driver, 7).until(EC.element_to_be_clickable((By.XPATH, xpath_ano)))
-            driver.execute_script("arguments[0].scrollIntoView(true);", ver_ano_link)
-            driver.execute_script("arguments[0].click();", ver_ano_link)
-        except TimeoutException:
+            # Dar click en el botón del año a buscar
+            try:
+                xpath_ano = f"//div[@id='{ano}']//button"
+                ver_ano_link = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_ano)))
+                WebDriverWait(driver, 7).until(EC.visibility_of(ver_ano_link))
+                WebDriverWait(driver, 7).until(EC.element_to_be_clickable((By.XPATH, xpath_ano)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", ver_ano_link)
+                driver.execute_script("arguments[0].click();", ver_ano_link)
+            except TimeoutException:
+                # Extraer el contenido de la página
+                page_source = driver.page_source
+                # Analizar el contenido con BeautifulSoup
+                soup = BeautifulSoup(page_source, 'html.parser')
+                nombre_nit = soup.find('h1')
+                if nombre_nit:
+                    nombre_texto = nombre_nit.get_text()
+                else:
+                    data = {'NIT': nit,
+                        'Última_Renovación': 'ACTIVA',
+                        'Activo_Total': None,
+                        'Ingresos_Actividad_Ordinaria': None
+                        }
+                    results.append(data)
+                    continue
+                xpath_ultima_renovacion = driver.find_element(By.XPATH, "//td[contains(text(),'Fecha de Renovacion')]")
+                celda_derecha = xpath_ultima_renovacion.find_element(By.XPATH, 'following-sibling::td')
+                dato_renovacion = celda_derecha.text
+                data['Última_Renovación'] = dato_renovacion
+            except NoSuchElementException:
+                print(f"No se encontró el elemento de 'Fecha de Renovación' para el NIT {nit}. Continuando...")
+                data['Última_Renovación'] = None  # O asigna otro valor predeterminado si prefieres
+                data = {'NIT': nit,
+                        'Razón_social': nombre_texto,
+                        'Última_renovación': None,
+                        'Activo_Total': None,
+                        'Ingresos_Actividad_Ordinaria': None,
+                        }
+                results.append(data)
+                boton_regresar_xpath = "//a[@class='btn-gt']"
+                ver_boton_regresar = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
+                WebDriverWait(driver, 20).until(EC.visibility_of(ver_boton_regresar))
+                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
+                driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
+                driver.execute_script("arguments[0].click();", ver_boton_regresar)
+                continue
+
+            # Esperar hasta que la tabla esté presente
+            xpath_tabla_ano = f"//div[@id='collapse-{ano}']//table"
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, xpath_tabla_ano)))
+
             # Extraer el contenido de la página
             page_source = driver.page_source
+
             # Analizar el contenido con BeautifulSoup
             soup = BeautifulSoup(page_source, 'html.parser')
-            
+
+            # Extraer la razón social
             nombre_nit = soup.find('h1')
             if nombre_nit:
                 nombre_texto = nombre_nit.get_text()
 
-            xpath_ultima_renovacion = driver.find_element(By.XPATH, "//td[contains(text(),'Fecha de Renovacion')]")
-            celda_derecha = xpath_ultima_renovacion.find_element(By.XPATH, 'following-sibling::td')
-            dato_renovacion = celda_derecha.text
-            data['Última_Renovación'] = dato_renovacion
-        except NoSuchElementException:
-            print(f"No se encontró el elemento de 'Fecha de Renovación' para el NIT {nit}. Continuando...")
-            data['Última_Renovación'] = None  # O asigna otro valor predeterminado si prefieres
+            # Extraer la fecha de última renovación
+            try:    
+                data['Última_Renovación'] = dato_renovacion
+            except NoSuchElementException:
+                print(f"No se encontró el elemento de 'Fecha de Renovación' para el NIT {nit}. Continuando...")
+                data['Última_Renovación'] = None  # O asigna otro valor predeterminado si prefieres
+
+            # Agregar los datos extraídos a `results`
+            results.append(data)
+            # Buscar la tabla con datos
+            table = soup.select_one(f'div#collapse-{ano} table')
             data = {'NIT': nit,
                     'Razón_social': nombre_texto,
-                    'Última_renovación': None,
-                    'Activo_Total': None,
-                    'Ingresos_Actividad_Ordinaria': None,
-                    }
+                    'Última_Renovación': dato_renovacion}
+            if table:
+                # Extraer todas las filas de la tabla
+                rows = table.find_all('tr')
+                for row in rows:
+                    # Extraer todas las celdas de la fila
+                    cells = row.find_all('td')
+                    cell_data = [cell.text.strip() for cell in cells]
+                    if 'Activo Total' in cell_data[0]:
+                        data['Activo Total'] = cell_data[1]
+                    elif 'Ingresos Actividad Ordinaria' in cell_data[0]:
+                        data['Ingresos Actividad Ordinaria'] = cell_data[1]
+            else:
+                print("No se encontró la tabla de datos")
+
+            # Agregar los datos del NIT actual a la lista de resultados
             results.append(data)
+
+            # Dar click en el botón de regresar para que se pueda iniciar la otra consulta
             boton_regresar_xpath = "//a[@class='btn-gt']"
             ver_boton_regresar = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
             WebDriverWait(driver, 20).until(EC.visibility_of(ver_boton_regresar))
             WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
             driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
             driver.execute_script("arguments[0].click();", ver_boton_regresar)
-            continue
-
-        # Esperar hasta que la tabla esté presente
-        xpath_tabla_ano = f"//div[@id='collapse-{ano}']//table"
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, xpath_tabla_ano)))
-
-        # Extraer el contenido de la página
-        page_source = driver.page_source
-
-        # Analizar el contenido con BeautifulSoup
-        soup = BeautifulSoup(page_source, 'html.parser')
-
-        # Extraer la razón social
-        nombre_nit = soup.find('h1')
-        if nombre_nit:
-            nombre_texto = nombre_nit.get_text()
-
-        # Extraer la fecha de última renovación
-        try:    
-            data['Última_Renovación'] = dato_renovacion
-        except NoSuchElementException:
-            print(f"No se encontró el elemento de 'Fecha de Renovación' para el NIT {nit}. Continuando...")
-            data['Última_Renovación'] = None  # O asigna otro valor predeterminado si prefieres
-
-        # Agregar los datos extraídos a `results`
-        results.append(data)
-        # Buscar la tabla con datos
-        table = soup.select_one(f'div#collapse-{ano} table')
-        data = {'NIT': nit,
-                'Razón_social': nombre_texto,
-                'Última_Renovación': dato_renovacion}
-        if table:
-            # Extraer todas las filas de la tabla
-            rows = table.find_all('tr')
-            for row in rows:
-                # Extraer todas las celdas de la fila
-                cells = row.find_all('td')
-                cell_data = [cell.text.strip() for cell in cells]
-                if 'Activo Total' in cell_data[0]:
-                    data['Activo Total'] = cell_data[1]
-                elif 'Ingresos Actividad Ordinaria' in cell_data[0]:
-                    data['Ingresos Actividad Ordinaria'] = cell_data[1]
-        else:
-            print("No se encontró la tabla de datos")
-
-        # Agregar los datos del NIT actual a la lista de resultados
-        results.append(data)
-
-        # Dar click en el botón de regresar para que se pueda iniciar la otra consulta
-        boton_regresar_xpath = "//a[@class='btn-gt']"
-        ver_boton_regresar = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
-        WebDriverWait(driver, 20).until(EC.visibility_of(ver_boton_regresar))
-        WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
-        driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
-        driver.execute_script("arguments[0].click();", ver_boton_regresar)
 
     except (TimeoutException, NoSuchElementException) as e:
         print(f"Hubo un problema al intentar interactuar con el NIT {nit}:", e)
