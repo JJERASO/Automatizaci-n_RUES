@@ -261,6 +261,14 @@ def buscar_nombre_texto():
     nombre_nit = soup.find('h1')
     return nombre_nit
 
+def dar_click_boton_regresar():
+    boton_regresar_xpath = "//a[@class='btn-gt']"
+    ver_boton_regresar = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
+    WebDriverWait(driver, 5).until(EC.visibility_of(ver_boton_regresar))
+    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
+    driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
+    driver.execute_script("arguments[0].click();", ver_boton_regresar)
+
 # Ciclo for para los n NITs enlistados
 results = []
 
@@ -338,6 +346,7 @@ for nit in nits:
                     'Ingresos_Actividad_Ordinaria': 'No hay información financiera'
                     }
                 results.append(data)
+                dar_click_boton_regresar
                 continue
             else: 
                 # Dar click en el botón del año a buscar
@@ -360,6 +369,7 @@ for nit in nits:
                             'Ingresos_Actividad_Ordinaria': 'No hay información financiera',
                             }
                         results.append(data)
+                        dar_click_boton_regresar
                         continue
                     else:
                         data = {'NIT': nit,
@@ -369,22 +379,16 @@ for nit in nits:
                             'Ingresos_Actividad_Ordinaria': 'No hay información financiera'
                             }
                         results.append(data)
+                        dar_click_boton_regresar
                         continue
                 else:
-                    boton_regresar_xpath = "//a[@class='btn-gt']"
-                    ver_boton_regresar = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
-                    WebDriverWait(driver, 5).until(EC.visibility_of(ver_boton_regresar))
-                    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
-                    driver.execute_script("arguments[0].click();", ver_boton_regresar)
 
                     # Esperar hasta que la tabla esté presente
                     xpath_tabla_ano = f"//div[@id='collapse-{ano}']//table"
-                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, xpath_tabla_ano)))
+                    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.XPATH, xpath_tabla_ano)))
 
                     # Extraer el contenido de la página
                     page_source = driver.page_source
-
                     # Analizar el contenido con BeautifulSoup
                     soup = BeautifulSoup(page_source, 'html.parser')
 
@@ -392,21 +396,21 @@ for nit in nits:
                     nombre_nit = soup.find('h1')
                     if nombre_nit:
                         nombre_texto = nombre_nit.get_text()
+                        data['Razón_social'] = nombre_texto
+                    else:
+                        data['Razón_social'] = None
 
                     # Extraer la fecha de última renovación
                     try:    
+                        buscar_fecha_renovacion
                         data['Última_Renovación'] = dato_renovacion
                     except NoSuchElementException:
                         print(f"No se encontró el elemento de 'Fecha de Renovación' para el NIT {nit}. Continuando...")
                         data['Última_Renovación'] = None  # O asigna otro valor predeterminado si prefieres
 
-                    # Agregar los datos extraídos a `results`
-                    results.append(data)
                     # Buscar la tabla con datos
                     table = soup.select_one(f'div#collapse-{ano} table')
-                    data = {'NIT': nit,
-                            'Razón_social': nombre_texto,
-                            'Última_Renovación': dato_renovacion}
+                    data['NIT'] = nit
                     if table:
                         # Extraer todas las filas de la tabla
                         rows = table.find_all('tr')
@@ -420,26 +424,31 @@ for nit in nits:
                                 data['Ingresos Actividad Ordinaria'] = cell_data[1]
                     else:
                         print("No se encontró la tabla de datos")
+                        data = {
+                            'Activo_Total': 'No se encontró la tabla de datos',
+                            'Ingresos_Actividad_Ordinaria': 'No se encontró la tabla de datos'
+                        }
+                        results.append(data)
+                        dar_click_boton_regresar
+                        continue
 
                 # Agregar los datos del NIT actual a la lista de resultados
                 results.append(data)
 
                 # Dar click en el botón de regresar para que se pueda iniciar la otra consulta
-                boton_regresar_xpath = "//a[@class='btn-gt']"
-                ver_boton_regresar = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.XPATH, boton_regresar_xpath)))
-                WebDriverWait(driver, 20).until(EC.visibility_of(ver_boton_regresar))
-                WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.XPATH, boton_regresar_xpath)))
-                driver.execute_script("arguments[0].scrollIntoView(true);", ver_boton_regresar)
-                driver.execute_script("arguments[0].click();", ver_boton_regresar)
+                dar_click_boton_regresar
 
     except (TimeoutException, NoSuchElementException) as e:
-        print(f"Hubo un problema al intentar interactuar con el NIT {nit}:", e)
-        if results:
-            print("Guardando el progreso actual en caso de TimeoutException...")
-            df = pd.DataFrame(results)
-            df.to_excel(rues_descarga_path, index=False)
-            print(f'Información parcial guardada en {rues_descarga_path}')
-        continue  # Continúa con el siguiente NIT en caso de error
+        data = {
+            'NIT': nit,
+            'Razón_social': 'Problema al interactuar con el NIT',
+            'Última_renovación': 'Problema al interactuar con el NIT',
+            'Activo_Total': 'Problema al interactuar con el NIT',
+            'Ingresos_Actividad_Ordinaria': 'Problema al interactuar con el NIT',
+        }
+        results.append(data)
+        driver.find_element(By.ID, 'txtNIT').clear()
+        continue
 
 print(f'Fase 2 completada. Se han extraído exitosamente la información financiera de {len(nits)} nits')
 print('Fase 3. Descarga del archivo a excel')
