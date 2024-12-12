@@ -248,18 +248,33 @@ data = {
 }
 
 def buscar_fecha_renovacion():
-    xpath_ultima_renovacion = driver.find_element(By.XPATH, "//td[contains(text(),'Fecha de Renovacion')]")
-    celda_derecha = xpath_ultima_renovacion.find_element(By.XPATH, 'following-sibling::td')
-    dato_renovacion = celda_derecha.text
-    return dato_renovacion
+    try:
+        # Analizar el contenido con BeautifulSoup
+        soup = BeautifulSoup(page_source, 'html.parser')
+        
+        # Buscar el elemento que contiene 'Fecha de Renovacion'
+        celda_renovacion = soup.find('td', text='Fecha de Renovacion')
+        if celda_renovacion:
+            # Buscar el elemento hermano (siguiente celda)
+            celda_derecha = celda_renovacion.find_next_sibling('td')
+            if celda_derecha:
+                dato_renovacion = celda_derecha.text.strip()
+                return dato_renovacion
+
+        return dato_renovacion  # Si no se encuentra la fecha de renovación
+    except Exception:
+        return None
 
 def buscar_nombre_texto():
-    # Extraer el contenido de la página
-    page_source = driver.page_source
-    # Analizar el contenido con BeautifulSoup
-    soup = BeautifulSoup(page_source, 'html.parser')
-    nombre_nit = soup.find('h1')
-    return nombre_nit
+    try:
+        # Extraer el contenido de la página
+        page_source = driver.page_source
+        # Analizar el contenido con BeautifulSoup
+        soup = BeautifulSoup(page_source, 'html.parser')
+        nombre_nit = soup.find('h1')
+        return nombre_nit.text.strip() if nombre_nit else None
+    except Exception:
+        return None
 
 def dar_click_boton_regresar():
     boton_regresar_xpath = "//a[@class='btn-gt']"
@@ -337,8 +352,8 @@ for nit in nits:
                 driver.execute_script("arguments[0].scrollIntoView(true);", ver_info_link)
                 driver.execute_script("arguments[0].click();", ver_info_link)
             except TimeoutException:
-                buscar_nombre_texto
-                buscar_fecha_renovacion
+                buscar_nombre_texto()
+                buscar_fecha_renovacion()
                 data = {'NIT': nit,
                     'Razón_social': nombre_texto,
                     'Última_Renovación': dato_renovacion,
@@ -346,7 +361,7 @@ for nit in nits:
                     'Ingresos_Actividad_Ordinaria': 'No hay información financiera'
                     }
                 results.append(data)
-                dar_click_boton_regresar
+                dar_click_boton_regresar()
                 continue
             else: 
                 # Dar click en el botón del año a buscar
@@ -358,20 +373,21 @@ for nit in nits:
                     driver.execute_script("arguments[0].scrollIntoView(true);", ver_ano_link)
                     driver.execute_script("arguments[0].click();", ver_ano_link)
                 except (TimeoutException, NoSuchElementException):
-                    buscar_nombre_texto
-                    buscar_fecha_renovacion
-                    if nombre_nit:
+                    buscar_nombre_texto()
+                    buscar_fecha_renovacion()
+                    try:
                         nombre_texto = nombre_nit.get_text()
+                        fecha_renovacion = dato_renovacion.get_text()
                         data = {'NIT': nit,
                             'Razón_social': nombre_texto,
-                            'Última_renovación': dato_renovacion,
+                            'Última_renovación': fecha_renovacion,
                             'Activo_Total': 'No hay información financiera',
                             'Ingresos_Actividad_Ordinaria': 'No hay información financiera',
                             }
                         results.append(data)
-                        dar_click_boton_regresar
+                        dar_click_boton_regresar()
                         continue
-                    else:
+                    except NameError:
                         data = {'NIT': nit,
                             'Razón_social': None,
                             'Última_Renovación': dato_renovacion,
@@ -379,7 +395,7 @@ for nit in nits:
                             'Ingresos_Actividad_Ordinaria': 'No hay información financiera'
                             }
                         results.append(data)
-                        dar_click_boton_regresar
+                        dar_click_boton_regresar()
                         continue
                 else:
 
@@ -429,14 +445,14 @@ for nit in nits:
                             'Ingresos_Actividad_Ordinaria': 'No se encontró la tabla de datos'
                         }
                         results.append(data)
-                        dar_click_boton_regresar
+                        dar_click_boton_regresar()
                         continue
 
                 # Agregar los datos del NIT actual a la lista de resultados
                 results.append(data)
 
                 # Dar click en el botón de regresar para que se pueda iniciar la otra consulta
-                dar_click_boton_regresar
+                dar_click_boton_regresar()
 
     except (TimeoutException, NoSuchElementException) as e:
         data = {
@@ -456,12 +472,6 @@ print('Fase 3. Descarga del archivo a excel')
 # Convertir los resultados a un DataFrame de pandas para facilitar la manipulación
 if results:
     df = pd.DataFrame(results)
-    for col in df.columns:
-        if col not in ['Razón_social', 'Última_renovación'] and df[col].dtype == 'object':  # Solo tratar las columnas de tipo objeto (texto)
-            df[col] = df[col].str.replace('$', '', regex=False).str.replace('.', '', regex=False)
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    print('Los tipos de datos para cada columna son:')
-    print(df.dtypes)
     # Crear el archivo excel 
     df.to_excel(rues_descarga_path, index=False)
 
